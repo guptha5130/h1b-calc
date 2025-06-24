@@ -5,23 +5,21 @@
   <title>H‑1B Stay Period Calculator</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 2em; background: #f4f4f4; }
-    form, .result { background: #fff; padding: 1.5em; border-radius: 8px; max-width: 500px; margin: 1em auto; }
+    form, .result { background: #fff; padding: 1.5em; border-radius: 8px; max-width: 700px; margin: 1em auto; }
     input[type="date"], input[type="number"], button { width: 100%; padding: 0.5em; margin-top: 0.5em; font-size: 1em; }
     .result { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+    th, td { padding: 0.5em; border: 1px solid #ccc; text-align: center; }
   </style>
 </head>
 <body>
   <h1>H‑1B Time Tracker</h1>
-  <form id="h1bForm">
+  <form id="bulkEntryForm">
     <label>
-      Start Date of Period:<br>
-      <input type="date" id="startDate" required>
+      Enter stay periods (one per line, format: yyyy-mm-dd to yyyy-mm-dd):<br>
+      <textarea id="bulkInput" rows="6" style="width:100%; font-family:monospace;"></textarea>
     </label>
-    <label>
-      End Date of Period:<br>
-      <input type="date" id="endDate" required>
-    </label>
-    <button type="submit">Add Period</button>
+    <button type="submit">Add Multiple Periods</button>
   </form>
 
   <form id="recaptureForm">
@@ -33,7 +31,12 @@
 
   <div class="result" id="result" style="display:none;">
     <h2>Usage Summary</h2>
-    <ul id="periodList"></ul>
+    <table>
+      <thead>
+        <tr><th>Period</th><th>Start Date</th><th>End Date</th></tr>
+      </thead>
+      <tbody id="periodTable"></tbody>
+    </table>
     <p><strong>Total Used:</strong> <span id="usedYears">0</span> years, <span id="usedMonths">0</span> months</p>
     <p><strong>Recapture Credit:</strong> <span id="recapture">0</span> days</p>
     <p><strong>Remaining:</strong> <span id="remainYears">6</span> years, <span id="remainMonths">0</span> months</p>
@@ -45,28 +48,35 @@
     const MAX_YEARS = 6;
     let periods = [];
 
-    document.getElementById('h1bForm').addEventListener('submit', function(e) {
+    document.getElementById('bulkEntryForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const s = new Date(document.getElementById('startDate').value);
-      const eD = new Date(document.getElementById('endDate').value);
-      if (eD <= s) {
-        alert('End date must be after start date.');
-        return;
-      }
-
-      for (let p of periods) {
-        if ((s <= p.end && eD >= p.start)) {
-          alert('This period overlaps with an existing entry.');
+      const lines = document.getElementById('bulkInput').value.trim().split(/\n+/);
+      for (let line of lines) {
+        const match = line.trim().match(/(\d{4}-\d{2}-\d{2})\s*to\s*(\d{4}-\d{2}-\d{2})/i);
+        if (!match) {
+          alert(`Invalid format: ${line}`);
           return;
         }
+        const s = new Date(match[1]);
+        const e = new Date(match[2]);
+        if (e <= s) {
+          alert(`End date must be after start date for: ${line}`);
+          return;
+        }
+        for (let p of periods) {
+          if ((s <= p.end && e >= p.start)) {
+            alert(`Period overlaps with existing entry: ${line}`);
+            return;
+          }
+        }
+        periods.push({ start: s, end: e });
       }
-
-      periods.push({ start: s, end: eD });
       update();
     });
 
     document.getElementById('resetBtn').addEventListener('click', function() {
       periods = [];
+      document.getElementById('bulkInput').value = '';
       update();
     });
 
@@ -92,15 +102,16 @@
     });
 
     function update() {
-      const listEl = document.getElementById('periodList');
-      listEl.innerHTML = '';
+      const table = document.getElementById('periodTable');
+      table.innerHTML = '';
       let totalMs = 0;
+      periods.sort((a, b) => a.start - b.start);
       periods.forEach((p, i) => {
         const ms = p.end - p.start;
         totalMs += ms;
-        const opt = document.createElement('li');
-        opt.textContent = `Period ${i+1}: ${p.start.toLocaleDateString()} → ${p.end.toLocaleDateString()}`;
-        listEl.appendChild(opt);
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>Period ${i+1}</td><td>${p.start.toLocaleDateString()}</td><td>${p.end.toLocaleDateString()}</td>`;
+        table.appendChild(row);
       });
 
       const recapture = parseInt(document.getElementById('recaptureDays').value) || 0;
