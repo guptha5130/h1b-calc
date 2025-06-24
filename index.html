@@ -6,7 +6,7 @@
   <style>
     body { font-family: Arial, sans-serif; padding: 2em; background: #f4f4f4; }
     form, .result { background: #fff; padding: 1.5em; border-radius: 8px; max-width: 700px; margin: 1em auto; }
-    input[type="date"], input[type="number"], button { width: 100%; padding: 0.5em; margin-top: 0.5em; font-size: 1em; }
+    input[type="date"], input[type="number"], button, textarea { width: 100%; padding: 0.5em; margin-top: 0.5em; font-size: 1em; }
     .result { margin-top: 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 1em; }
     th, td { padding: 0.5em; border: 1px solid #ccc; text-align: center; }
@@ -17,7 +17,7 @@
   <form id="bulkEntryForm">
     <label>
       Enter stay periods (one per line, format: yyyy-mm-dd to yyyy-mm-dd):<br>
-      <textarea id="bulkInput" rows="6" style="width:100%; font-family:monospace;"></textarea>
+      <textarea id="bulkInput" rows="6" style="font-family:monospace;"></textarea>
     </label>
     <button type="submit">Add Multiple Periods</button>
   </form>
@@ -51,6 +51,8 @@
     document.getElementById('bulkEntryForm').addEventListener('submit', function(e) {
       e.preventDefault();
       const lines = document.getElementById('bulkInput').value.trim().split(/\n+/);
+      const newPeriods = [];
+
       for (let line of lines) {
         const match = line.trim().match(/(\d{4}-\d{2}-\d{2})\s*to\s*(\d{4}-\d{2}-\d{2})/i);
         if (!match) {
@@ -63,16 +65,30 @@
           alert(`End date must be after start date for: ${line}`);
           return;
         }
-        for (let p of periods) {
-          if ((s <= p.end && e >= p.start)) {
-            alert(`Period overlaps with existing entry: ${line}`);
-            return;
-          }
-        }
-        periods.push({ start: s, end: e });
+        newPeriods.push({ start: s, end: e });
       }
+
+      periods = mergePeriods([...periods, ...newPeriods]);
       update();
     });
+
+    function mergePeriods(periods) {
+      periods.sort((a, b) => a.start - b.start);
+      const merged = [];
+      for (const p of periods) {
+        if (!merged.length) {
+          merged.push(p);
+        } else {
+          const last = merged[merged.length - 1];
+          if (p.start <= last.end) {
+            last.end = new Date(Math.max(last.end, p.end));
+          } else {
+            merged.push(p);
+          }
+        }
+      }
+      return merged;
+    }
 
     document.getElementById('resetBtn').addEventListener('click', function() {
       periods = [];
@@ -105,7 +121,6 @@
       const table = document.getElementById('periodTable');
       table.innerHTML = '';
       let totalMs = 0;
-      periods.sort((a, b) => a.start - b.start);
       periods.forEach((p, i) => {
         const ms = p.end - p.start;
         totalMs += ms;
