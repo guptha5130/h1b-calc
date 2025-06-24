@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>H‑1B Stay Period Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2em; background: #f4f4f4; }
+    form, .result { background: #fff; padding: 1.5em; border-radius: 8px; max-width: 500px; margin: 1em auto; }
+    input[type="date"], input[type="number"], button { width: 100%; padding: 0.5em; margin-top: 0.5em; font-size: 1em; }
+    .result { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>H‑1B Time Tracker</h1>
+  <form id="h1bForm">
+    <label>
+      Start Date of Period:<br>
+      <input type="date" id="startDate" required>
+    </label>
+    <label>
+      End Date of Period:<br>
+      <input type="date" id="endDate" required>
+    </label>
+    <button type="submit">Add Period</button>
+  </form>
+
+  <form id="recaptureForm">
+    <label>
+      Total Recapture Days (spent outside U.S.):<br>
+      <input type="number" id="recaptureDays" value="0" min="0">
+    </label>
+  </form>
+
+  <div class="result" id="result" style="display:none;">
+    <h2>Usage Summary</h2>
+    <ul id="periodList"></ul>
+    <p><strong>Total Used:</strong> <span id="usedYears">0</span> years, <span id="usedMonths">0</span> months</p>
+    <p><strong>Recapture Credit:</strong> <span id="recapture">0</span> days</p>
+    <p><strong>Remaining:</strong> <span id="remainYears">6</span> years, <span id="remainMonths">0</span> months</p>
+    <button id="resetBtn">Reset</button>
+    <button id="exportBtn">Download CSV</button>
+  </div>
+
+  <script>
+    const MAX_YEARS = 6;
+    let periods = [];
+
+    document.getElementById('h1bForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const s = new Date(document.getElementById('startDate').value);
+      const eD = new Date(document.getElementById('endDate').value);
+      if (eD <= s) {
+        alert('End date must be after start date.');
+        return;
+      }
+
+      for (let p of periods) {
+        if ((s <= p.end && eD >= p.start)) {
+          alert('This period overlaps with an existing entry.');
+          return;
+        }
+      }
+
+      periods.push({ start: s, end: eD });
+      update();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function() {
+      periods = [];
+      update();
+    });
+
+    document.getElementById('recaptureDays').addEventListener('input', update);
+
+    document.getElementById('exportBtn').addEventListener('click', function() {
+      const rows = [['Period', 'Start Date', 'End Date']];
+      periods.forEach((p, i) => {
+        rows.push([`Period ${i+1}`, p.start.toLocaleDateString(), p.end.toLocaleDateString()]);
+      });
+      rows.push(['Total Recapture Days', document.getElementById('recaptureDays').value]);
+      rows.push(['Used Years', document.getElementById('usedYears').textContent]);
+      rows.push(['Used Months', document.getElementById('usedMonths').textContent]);
+      rows.push(['Remaining Years', document.getElementById('remainYears').textContent]);
+      rows.push(['Remaining Months', document.getElementById('remainMonths').textContent]);
+
+      let csvContent = rows.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'h1b_stay_summary.csv';
+      link.click();
+    });
+
+    function update() {
+      const listEl = document.getElementById('periodList');
+      listEl.innerHTML = '';
+      let totalMs = 0;
+      periods.forEach((p, i) => {
+        const ms = p.end - p.start;
+        totalMs += ms;
+        const opt = document.createElement('li');
+        opt.textContent = `Period ${i+1}: ${p.start.toLocaleDateString()} → ${p.end.toLocaleDateString()}`;
+        listEl.appendChild(opt);
+      });
+
+      const recapture = parseInt(document.getElementById('recaptureDays').value) || 0;
+      const recaptureMs = recapture * 1000 * 60 * 60 * 24;
+      const effectiveMs = totalMs - recaptureMs;
+
+      const msInMonth = 1000 * 60 * 60 * 24 * 30.436875;
+      const totalMonths = Math.floor(effectiveMs / msInMonth);
+      const usedYears = Math.floor(totalMonths / 12);
+      const usedMonths = totalMonths % 12;
+
+      const remainMonthsTotal = Math.max(MAX_YEARS * 12 - totalMonths, 0);
+      const remainYears = Math.floor(remainMonthsTotal / 12);
+      const remainMonths = remainMonthsTotal % 12;
+
+      document.getElementById('usedYears').textContent = usedYears;
+      document.getElementById('usedMonths').textContent = usedMonths;
+      document.getElementById('remainYears').textContent = remainYears;
+      document.getElementById('remainMonths').textContent = remainMonths;
+      document.getElementById('recapture').textContent = recapture;
+
+      document.getElementById('result').style.display = periods.length ? 'block' : 'none';
+    }
+  </script>
+</body>
+</html>
